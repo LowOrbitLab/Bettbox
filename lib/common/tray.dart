@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/state.dart';
+import 'package:bett_box/views/proxies/common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -45,6 +46,7 @@ class Tray {
   Future<void> update({
     required TrayState trayState,
     bool focus = false,
+    bool silent = false,
   }) async {
     if (system.isAndroid) {
       return;
@@ -59,6 +61,10 @@ class Tray {
 
     if (focus) {
       await _doUpdate(trayState: trayState, focus: focus);
+    } else if (silent) {
+      _debounceTimer = Timer(const Duration(milliseconds: 50), () async {
+        await _doUpdate(trayState: trayState, focus: focus, silent: silent);
+      });
     } else {
       _debounceTimer = Timer(_debounceDelay, () async {
         await _doUpdate(trayState: trayState, focus: focus);
@@ -69,12 +75,13 @@ class Tray {
   Future<void> _doUpdate({
     required TrayState trayState,
     bool focus = false,
+    bool silent = false,
   }) async {
     if (_isUpdating) return;
     _isUpdating = true;
 
     try {
-      if (!Platform.isLinux) {
+      if (!silent && !Platform.isLinux) {
         await _updateSystemTray(
           brightness: trayState.brightness,
           isStart: trayState.isStart,
@@ -112,10 +119,23 @@ class Tray {
     menuItems.add(MenuItem.separator());
     for (final group in trayState.groups) {
       List<MenuItem> subMenuItems = [];
+
+      subMenuItems.add(
+        MenuItem(
+          label: '⚡ ${appLocalizations.startTest}',
+          onClick: (_) => _testGroupDelay(group),
+        ),
+      );
+
+      subMenuItems.add(MenuItem.separator());
+
       for (final proxy in group.all) {
+        final delay = trayState.delays[proxy.name];
+        final label = _formatProxyLabel(proxy.name, delay);
+
         subMenuItems.add(
           MenuItem.checkbox(
-            label: proxy.name,
+            label: label,
             checked: trayState.selectedMap[group.name] == proxy.name,
             onClick: (_) {
               final appController = globalState.appController;
@@ -239,6 +259,43 @@ class Tray {
     } catch (e) {
       commonPrint.log('WakeLock toggle error: $e');
     }
+  }
+
+  String _formatProxyLabel(String name, int? delay) {
+    if (delay == null) {
+      return name;
+    } else if (delay == 0) {
+      return '$name  ...';
+    } else if (delay < 0) {
+      return '$name  ×';
+    } else {
+      return '$name  ${delay}ms';
+    }
+  }
+
+  Future<void> _testGroupDelay(Group group) async {
+    final appController = globalState.appController;
+    final testUrl = appController.getRealTestUrl('');
+
+    for (final proxy in group.all) {
+      appController.setDelay(Delay(
+        url: testUrl,
+        name: proxy.name,
+        value: 0,
+      ));
+    }
+
+    await globalState.appController.updateTray(false, true);
+
+    Timer? refreshTimer;
+    refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      await globalState.appController.updateTray(false, true);
+    });
+
+    await delayTest(group.all);
+
+    refreshTimer.cancel();
+    await globalState.appController.updateTray(false, true);
   }
 }
 
