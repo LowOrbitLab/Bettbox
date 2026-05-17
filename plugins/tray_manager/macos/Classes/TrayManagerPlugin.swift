@@ -30,6 +30,7 @@ public class TrayManagerPlugin: NSObject, FlutterPlugin, NSMenuDelegate {
     
     var _inited: Bool = false;
     var _isMenuOpen: Bool = false
+    var _menuItemClicked: Bool = false
     var _shouldReopenMenu: Bool = false
     
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -196,20 +197,28 @@ public class TrayManagerPlugin: NSObject, FlutterPlugin, NSMenuDelegate {
         let args:[String: Any] = call.arguments as! [String: Any]
         
         let keepMenuOpen = args["keepMenuOpen"] as? Bool ?? false
-        let shouldKeepOpen = keepMenuOpen && _isMenuOpen
         
-        if (shouldKeepOpen && trayMenu != nil) {
+        if (keepMenuOpen && _isMenuOpen && trayMenu != nil) {
             trayMenu?.updateMenuItems(args["menu"] as! [String: Any])
         } else {
+            let wasClicked = _menuItemClicked
+            _menuItemClicked = false
+            
             trayMenu = TrayMenu(args["menu"] as! [String: Any])
             trayMenu?.onMenuItemClick = { [weak self] (menuItem: NSMenuItem) in
                 guard let strongSelf = self else { return }
+                strongSelf._menuItemClicked = true
                 let args: NSDictionary = [
                     "id": menuItem.tag,
                 ]
                 strongSelf.channel.invokeMethod(kEventOnTrayMenuItemClick, arguments: args, result: nil)
             }
             trayMenu?.delegate = self
+            
+            if (keepMenuOpen && !_isMenuOpen && wasClicked) {
+                trayIcon?.statusItem?.menu = trayMenu
+                trayIcon?.statusItem?.button?.performClick(trayIcon)
+            }
         }
         
         result(true)
@@ -217,6 +226,7 @@ public class TrayManagerPlugin: NSObject, FlutterPlugin, NSMenuDelegate {
     
     public func popUpContextMenu(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         if (trayMenu != nil) {
+            _menuItemClicked = false
             trayIcon?.statusItem?.menu = trayMenu
             trayIcon?.statusItem?.button?.performClick(trayIcon)
         }

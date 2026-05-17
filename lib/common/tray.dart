@@ -303,7 +303,7 @@ class Tray {
     _loadingFrame = 0;
     _loadingTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
       _loadingFrame = (_loadingFrame + 1) % _loadingFrames.length;
-      await globalState.appController.updateTray(false, true);
+      await globalState.appController.updateTray(false, trayManager.isMenuOpen);
     });
   }
 

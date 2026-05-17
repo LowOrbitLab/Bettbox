@@ -198,7 +198,7 @@ class TrayManager {
     _menu = menu;
     final Map<String, dynamic> arguments = {
       'menu': menu.toJson(),
-      'keepMenuOpen': keepMenuOpen && _isMenuOpen,
+      'keepMenuOpen': keepMenuOpen,
       'brightness': brightness?.name,
     };
     await _channel.invokeMethod('setContextMenu', arguments);

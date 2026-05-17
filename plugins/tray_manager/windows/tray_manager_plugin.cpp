@@ -109,6 +109,9 @@ class TrayManagerPlugin : public flutter::Plugin {
 
   bool is_menu_open_ = false;
   bool should_reopen_menu_ = false;
+  bool menu_item_clicked_ = false;
+  int last_popup_x_ = 0;
+  int last_popup_y_ = 0;
 
   // The ID of the WindowProc delegate registration.
   int window_proc_id = -1;
@@ -307,6 +310,7 @@ std::optional<LRESULT> TrayManagerPlugin::HandleWindowProc(HWND hWnd,
       }
     }
   } else if (message == WM_COMMAND) {
+    menu_item_clicked_ = true;
     flutter::EncodableMap eventData = flutter::EncodableMap();
     eventData[flutter::EncodableValue("id")] =
         flutter::EncodableValue((int)wParam);
@@ -419,7 +423,7 @@ void TrayManagerPlugin::SetContextMenu(
       std::get<flutter::EncodableMap>(*method_call.arguments());
 
   auto* keep_menu_open = std::get_if<bool>(ValueOrNull(args, "keepMenuOpen"));
-  bool should_keep_open = keep_menu_open != nullptr && *keep_menu_open && is_menu_open_;
+  bool should_keep_open = keep_menu_open != nullptr && *keep_menu_open;
 
   auto* brightness = std::get_if<std::string>(ValueOrNull(args, "brightness"));
   bool is_dark = brightness != nullptr && *brightness == "dark";
@@ -429,11 +433,22 @@ void TrayManagerPlugin::SetContextMenu(
     _UpdateMenuLabels(hMenu, std::get<flutter::EncodableMap>(
                            args.at(flutter::EncodableValue("menu"))));
   } else {
+    menu_item_clicked_ = false;
     _CreateMenu(hMenu, std::get<flutter::EncodableMap>(
                            args.at(flutter::EncodableValue("menu"))));
   }
 
   result->Success(flutter::EncodableValue(true));
+
+  if (should_keep_open && !is_menu_open_ && menu_item_clicked_) {
+    HWND hWnd = GetMainWindow();
+    SetForegroundWindow(hWnd);
+    is_menu_open_ = true;
+    menu_item_clicked_ = false;
+    channel->InvokeMethod("onMenuOpen", std::make_unique<flutter::EncodableValue>());
+    TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, last_popup_x_,
+                   last_popup_y_, 0, hWnd, NULL);
+  }
 }
 
 void TrayManagerPlugin::PopUpContextMenu(
@@ -463,9 +478,16 @@ void TrayManagerPlugin::PopUpContextMenu(
   if (bringAppToFront) {
     SetForegroundWindow(hWnd);
   }
-  TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, static_cast<int>(x),
-                 static_cast<int>(y), 0, hWnd, NULL);
+  
   result->Success(flutter::EncodableValue(true));
+  
+  is_menu_open_ = true;
+  menu_item_clicked_ = false;
+  last_popup_x_ = static_cast<int>(x);
+  last_popup_y_ = static_cast<int>(y);
+  channel->InvokeMethod("onMenuOpen", std::make_unique<flutter::EncodableValue>());
+  TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, last_popup_x_,
+                 last_popup_y_, 0, hWnd, NULL);
 }
 
 void TrayManagerPlugin::GetBounds(
