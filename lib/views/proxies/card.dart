@@ -5,11 +5,19 @@ import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/views/proxies/common.dart';
 import 'package:bett_box/widgets/widgets.dart';
+import 'package:emoji_regex/emoji_regex.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 
+final groupIconMapProvider = Provider<Map<String, String>>((ref) {
+  final groups = ref.watch(groupsProvider);
+  return {for (final g in groups) g.name: g.icon};
+});
+
 class ProxyCard extends StatelessWidget {
+  static final _emojiRegex = emojiRegex();
+
   final String groupName;
   final Proxy proxy;
   final GroupType groupType;
@@ -126,25 +134,60 @@ class ProxyCard extends StatelessWidget {
     };
   }
 
+  Widget _buildProxyNameWithIcon(BuildContext context, WidgetRef ref) {
+    final nameWidget = _buildProxyNameText(context);
+
+    if (_emojiRegex.hasMatch(proxy.name)) {
+      return nameWidget;
+    }
+
+    final subGroupIcon = ref.watch(
+      groupIconMapProvider.select((map) => map[proxy.name] ?? ''),
+    );
+    if (subGroupIcon.isEmpty) {
+      return nameWidget;
+    }
+    return SizedBox(
+      height: type == ProxyCardType.min
+          ? measure.bodyMediumHeight * 1
+          : measure.bodyMediumHeight * 2,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CommonTargetIcon(src: subGroupIcon, size: measure.bodyMediumHeight),
+          const SizedBox(width: 4),
+          Flexible(child: nameWidget),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProxyNameText(BuildContext context) {
     if (type == ProxyCardType.min) {
       return SizedBox(
         height: measure.bodyMediumHeight * 1,
-        child: EmojiText(
-          proxy.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: context.textTheme.bodyMedium,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: EmojiText(
+            proxy.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.textTheme.bodyMedium,
+          ),
         ),
       );
     } else {
       return SizedBox(
         height: measure.bodyMediumHeight * 2,
-        child: EmojiText(
-          proxy.name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: context.textTheme.bodyMedium,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: EmojiText(
+            proxy.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: context.textTheme.bodyMedium,
+          ),
         ),
       );
     }
@@ -169,7 +212,6 @@ class ProxyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final proxyNameText = _buildProxyNameText(context);
     final delayText = _buildDelayText(context);
     return RepaintBoundary(
       child: Stack(
@@ -195,7 +237,10 @@ class ProxyCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 8,
                 children: [
-                  proxyNameText,
+                  Consumer(
+                    builder: (_, ref, _) =>
+                        _buildProxyNameWithIcon(context, ref),
+                  ),
                   if (type == ProxyCardType.expand) ...[
                     SizedBox(
                       height: measure.labelSmallHeight * 2 + 4,
