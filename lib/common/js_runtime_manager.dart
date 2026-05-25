@@ -16,10 +16,28 @@ class JavaScriptRuntimeManager {
   ) async {
     final runtime = await _acquire();
     try {
-      return await task(runtime);
+      return await task(runtime).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      if (e is TimeoutException) {
+        await _forceDispose();
+      }
+      rethrow;
     } finally {
       await _release();
     }
+  }
+
+  static Future<void> _forceDispose() async {
+    await _lock.synchronized(() async {
+      if (_instance != null) {
+        _isDisposing = true;
+        try {
+          _instance!.dispose();
+        } catch (_) {}
+        _instance = null;
+        _isDisposing = false;
+      }
+    });
   }
 
   static Future<JavascriptRuntime> _acquire() async {
