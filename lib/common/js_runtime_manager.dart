@@ -1,9 +1,70 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:ffi';
+import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_js/flutter_js.dart';
 import 'package:synchronized/synchronized.dart';
 
 class JavaScriptRuntimeManager {
+  static Future<Map<String, dynamic>> evaluate({
+    required Map<String, dynamic> config,
+    required String script,
+  }) async {
+    final isQuickJsWithLeak = Platform.isWindows || Platform.isAndroid || Platform.isLinux;
+
+    if (isQuickJsWithLeak) {
+      return await Isolate.run(() async {
+        final runtime = getJavascriptRuntime();
+        try {
+          return await _evaluateInRuntime(runtime, config, script);
+        } finally {
+          runtime.dispose();
+        }
+      });
+    } else {
+      return await execute((runtime) async {
+        return await _evaluateInRuntime(runtime, config, script);
+      });
+    }
+  }
+
+  static Future<Map<String, dynamic>> _evaluateInRuntime(
+    JavascriptRuntime runtime,
+    Map<String, dynamic> config,
+    String script,
+  ) async {
+    final configJs = json.encode(config);
+    final scriptJs = json.encode(script);
+    final res = await runtime.evaluateAsync('''
+      (() => {
+        const __bettboxConfig = $configJs;
+        const __bettboxScript = $scriptJs;
+        const __bettboxMain = new Function(
+          __bettboxScript + '\\nreturn typeof main === "function" ? main : null;',
+        )();
+        if (typeof __bettboxMain !== 'function') {
+          throw new Error('Script must define main(config)');
+        }
+        return __bettboxMain(__bettboxConfig);
+      })()
+    ''').timeout(const Duration(seconds: 10));
+
+    if (res.isError) {
+      throw res.stringResult;
+    }
+
+    final rawResult = res.rawResult;
+    if (rawResult is Pointer) {
+      return runtime.convertValue<Map<String, dynamic>>(res) ?? config;
+    } else if (rawResult is Map) {
+      return Map<String, dynamic>.from(rawResult);
+    } else {
+      return config;
+    }
+  }
+
   static JavascriptRuntime? _instance;
   static final Lock _lock = Lock();
   static int _activeCount = 0;
