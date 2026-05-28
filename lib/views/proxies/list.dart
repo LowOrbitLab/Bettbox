@@ -5,7 +5,6 @@ import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'card.dart';
@@ -66,6 +65,23 @@ class _ProxyGroupsListState extends State<_ProxyGroupsList> {
     globalState.appController.updateCurrentUnfoldSet(tempUnfoldSet);
   }
 
+  double _getGroupSectionHeight(int index) {
+    final group = widget.groups[index];
+    final isExpand = widget.currentUnfoldSet.contains(group.name);
+    final measure = globalState.measure;
+    final contentRowHeight = [40.0, measure.titleMediumHeight + 4 + measure.labelMediumHeight]
+        .reduce((a, b) => a > b ? a : b);
+    final headerHeight = 24.0 + contentRowHeight;
+    const sectionBottomPadding = 8.0;
+    if (!isExpand) {
+      return headerHeight + sectionBottomPadding;
+    }
+    final itemHeight = getItemHeight(widget.cardType);
+    final rows = (group.all.length / widget.columns).ceil();
+    final gridHeight = (rows * (itemHeight + 8) - 8).clamp(0, double.infinity);
+    return headerHeight + 8 + gridHeight + sectionBottomPadding;
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -80,25 +96,27 @@ class _ProxyGroupsListState extends State<_ProxyGroupsList> {
       trackVisibility: true,
       child: CustomScrollView(
         controller: _scrollController,
-        scrollCacheExtent: const ScrollCacheExtent.pixels(500),
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.all(16),
-            sliver: SliverList.builder(
-              itemCount: widget.groups.length,
-              itemBuilder: (context, index) {
-                final group = widget.groups[index];
-                final isExpand = widget.currentUnfoldSet.contains(group.name);
-                return _GroupSection(
-                  key: ValueKey(group.name),
-                  group: group,
-                  columns: widget.columns,
-                  cardType: widget.cardType,
-                  sortType: widget.sortType,
-                  isExpand: isExpand,
-                  onToggle: () => _handleToggle(group.name),
-                );
-              },
+            sliver: SliverVariedExtentList(
+              itemExtentBuilder: (index, _) => _getGroupSectionHeight(index),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final group = widget.groups[index];
+                  final isExpand = widget.currentUnfoldSet.contains(group.name);
+                  return _GroupSection(
+                    key: ValueKey(group.name),
+                    group: group,
+                    columns: widget.columns,
+                    cardType: widget.cardType,
+                    sortType: widget.sortType,
+                    isExpand: isExpand,
+                    onToggle: () => _handleToggle(group.name),
+                  );
+                },
+                childCount: widget.groups.length,
+              ),
             ),
           ),
         ],
