@@ -9,10 +9,42 @@ import "C"
 import (
 	bridge "core/dart-bridge"
 	"encoding/json"
+	"sync"
+	"time"
 	"unsafe"
 )
 
 var messagePort int64 = -1
+
+var (
+	batchMutex      sync.Mutex
+	batchMessages   []Message
+	batchTimer      *time.Timer
+	batchInterval   = 500 * time.Millisecond
+)
+
+func sendBatchMessages() {
+	batchMutex.Lock()
+	messages := make([]Message, len(batchMessages))
+	copy(messages, batchMessages)
+	batchMessages = batchMessages[:0]
+	batchTimer = nil
+	batchMutex.Unlock()
+
+	if len(messages) == 0 || messagePort == -1 {
+		return
+	}
+	result := ActionResult{
+		Method: messageMethod,
+		Port:   messagePort,
+		Data:   messages,
+	}
+	result.send()
+}
+
+func shouldBatch(messageType MessageType) bool {
+	return messageType == LogMessage || messageType == RequestMessage
+}
 
 //export initNativeApiBridge
 func initNativeApiBridge(api unsafe.Pointer) {
@@ -67,6 +99,15 @@ func invokeAction(paramsChar *C.char, port C.longlong) {
 
 func sendMessage(message Message) {
 	if messagePort == -1 {
+		return
+	}
+	if shouldBatch(message.Type) {
+		batchMutex.Lock()
+		batchMessages = append(batchMessages, message)
+		if batchTimer == nil {
+			batchTimer = time.AfterFunc(batchInterval, sendBatchMessages)
+		}
+		batchMutex.Unlock()
 		return
 	}
 	result := ActionResult{

@@ -98,7 +98,16 @@ abstract class ClashHandlerInterface with ClashInterface {
     try {
       switch (result.method) {
         case ActionMethod.message:
-          clashMessage.controller.add(result.data);
+          final data = result.data;
+          if (data is List) {
+            for (final item in data) {
+              if (item is Map<String, Object?>) {
+                clashMessage.controller.add(item);
+              }
+            }
+          } else if (data is Map<String, Object?>) {
+            clashMessage.controller.add(data);
+          }
           completer?.complete(true);
           return;
         case ActionMethod.getConfig:
