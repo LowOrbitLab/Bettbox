@@ -33,6 +33,7 @@ class SuspendModule(private val context: Context) {
             !shouldSuspendNow && isSuspended -> {
                 Core.suspended(false)
                 isSuspended = false
+                com.appshub.bettbox.plugins.VpnPlugin.onUpdateNetwork()
             }
         }
     }
