@@ -4,12 +4,12 @@ import 'package:bett_box/models/models.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/open_container.dart';
 import 'package:flutter/material.dart';
-import 'package:silky_scroll/silky_scroll.dart';
 
 import 'card.dart';
 import 'input.dart';
 import 'scaffold.dart';
 import 'sheet.dart';
+import 'scroll.dart';
 
 class Delegate {
   const Delegate();
@@ -565,8 +565,7 @@ List<Widget> generateInfoSection({
 }
 
 Widget generateListView(List<Widget> items) {
-  return SilkyListView.builder(
-    silkyConfig: silkyScrollConfig,
+  return AdaptiveListView.builder(
     itemCount: items.length,
     itemBuilder: (_, index) => items[index],
     padding: const EdgeInsets.only(bottom: 16),

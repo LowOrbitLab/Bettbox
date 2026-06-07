@@ -16,7 +16,6 @@ import 'package:bett_box/views/other_setting.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:silky_scroll/silky_scroll.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' show dirname, join;
 
@@ -122,9 +121,8 @@ class _ToolViewState extends ConsumerState<ToolsView> {
     ];
     return CommonScaffold(
       title: appLocalizations.tools,
-      body: SilkyListView.builder(
+      body: AdaptiveListView.builder(
         key: toolsStoreKey,
-        silkyConfig: silkyScrollConfig,
         itemCount: items.length,
         itemBuilder: (_, index) => items[index],
         padding: const EdgeInsets.only(bottom: 20),
