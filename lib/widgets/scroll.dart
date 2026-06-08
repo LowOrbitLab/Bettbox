@@ -240,7 +240,7 @@ class AdaptiveListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (system.isAndroid) {
+    if (system.isAndroid || reverse) {
       return ListView.builder(
         controller: controller,
         physics: physics,

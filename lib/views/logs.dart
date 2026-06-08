@@ -22,7 +22,10 @@ class _LogsViewState extends ConsumerState<LogsView> {
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
+    final logs = globalState.appState.logs.list;
+    _scrollController = ScrollController(
+      initialScrollOffset: logs.length * LogItem.height,
+    );
   }
 
   @override
@@ -143,27 +146,40 @@ class _LogsViewState extends ConsumerState<LogsView> {
                 dataSource: logs,
                 child: CommonScrollBar(
                   controller: _scrollController,
-                  child: AdaptiveListView.builder(
-                    reverse: true,
-                    controller: _scrollController,
-                    itemBuilder: (_, index) {
-                      if (index.isOdd) {
-                        return const Divider(height: 0);
-                      }
-                      final itemIndex = index ~/ 2;
-                      if (itemIndex >= logs.length) {
-                        return const SizedBox.shrink();
-                      }
-                      final log = logs[itemIndex];
-                      return LogItem(
-                        key: ValueKey(log.dateTime),
-                        log: log,
-                        onClick: (value) {
-                          context.commonScaffoldState?.addKeyword(value);
-                        },
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final contentHeight = logs.length * LogItem.height;
+                      final listViewHeight = contentHeight < constraints.maxHeight
+                          ? contentHeight
+                          : constraints.maxHeight;
+
+                      return SizedBox(
+                        height: listViewHeight,
+                        child: AdaptiveListView.builder(
+                          physics: const NextClampingScrollPhysics(),
+                          reverse: true,
+                          controller: _scrollController,
+                          itemBuilder: (_, index) {
+                            if (index.isOdd) {
+                              return const Divider(height: 0);
+                            }
+                            final itemIndex = index ~/ 2;
+                            if (itemIndex >= logs.length) {
+                              return const SizedBox.shrink();
+                            }
+                            final log = logs[itemIndex];
+                            return LogItem(
+                              key: ValueKey(log.dateTime),
+                              log: log,
+                              onClick: (value) {
+                                context.commonScaffoldState?.addKeyword(value);
+                              },
+                            );
+                          },
+                          itemCount: logs.length * 2 - 1,
+                        ),
                       );
                     },
-                    itemCount: logs.length * 2 - 1,
                   ),
                 ),
               ),
