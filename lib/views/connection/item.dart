@@ -151,20 +151,29 @@ class TrackerInfoItem extends ConsumerWidget {
           )
         : null;
     return RepaintBoundary(
-      child: ListItem(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: () {
-        showExtend(
-          context,
-          builder: (_, type) {
-            return AdaptiveSheetScaffold(
-              type: type,
-              body: TrackerInfoDetailView(trackerInfo: trackerInfo, detailTitle: detailTitle),
-              title: detailTitle,
-            );
-          },
-        );
-      },
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: context.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+        ),
+        child: ListItem(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          onTap: () {
+          showExtend(
+            context,
+            builder: (_, type) {
+              return AdaptiveSheetScaffold(
+                type: type,
+                body: TrackerInfoDetailView(trackerInfo: trackerInfo, detailTitle: detailTitle),
+                title: detailTitle,
+              );
+            },
+          );
+        },
       title: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,8 +191,9 @@ class TrackerInfoItem extends ConsumerWidget {
           subTitle,
         ],
       ),
-      ),
-    );
+      ), // closes ListItem
+      ), // closes Container
+    ); // closes RepaintBoundary
   }
 }
 

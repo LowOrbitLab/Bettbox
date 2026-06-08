@@ -267,6 +267,12 @@ class SilkyScrollState extends ChangeNotifier
   @override
   bool get isShiftPressed => _isShiftPressed();
 
+  @override
+  bool get isReversed {
+    return clientController.hasClients &&
+           axisDirectionIsReversed(clientController.position.axisDirection);
+  }
+
   // ── Public API (delegated) ───────────────────────────────────────
 
   /// Supplies the widget [BuildContext] so that the state can find an

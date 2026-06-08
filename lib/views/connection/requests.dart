@@ -109,17 +109,11 @@ class _RequestsViewState extends ConsumerState<RequestsView> {
                         height: listViewHeight,
                         child: AdaptiveListView.builder(
                           reverse: true,
+                          itemExtent: TrackerInfoItem.height,
                           physics: const NextClampingScrollPhysics(),
                           controller: _scrollController,
                           itemBuilder: (_, index) {
-                            if (index.isOdd) {
-                              return const Divider(height: 0);
-                            }
-                            final itemIndex = index ~/ 2;
-                            if (itemIndex >= requests.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final trackerInfo = requests[itemIndex];
+                            final trackerInfo = requests[index];
                             return TrackerInfoItem(
                               key: ValueKey(trackerInfo.id),
                               trackerInfo: trackerInfo,
@@ -131,7 +125,7 @@ class _RequestsViewState extends ConsumerState<RequestsView> {
                               ),
                             );
                           },
-                          itemCount: requests.length * 2 - 1,
+                          itemCount: requests.length,
                         ),
                       );
                     },

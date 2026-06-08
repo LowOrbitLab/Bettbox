@@ -23,6 +23,7 @@ abstract interface class SilkyInputHandlerDelegate {
   bool get isWebPlatform;
   MouseWheelVerticalDeltaBehavior get mouseWheelVerticalDeltaBehavior;
   bool get isShiftPressed;
+  bool get isReversed;
 
   void handleTrackpadScroll(double delta);
   void handleTouchDragScroll(double delta);
@@ -60,12 +61,12 @@ final class SilkyInputHandler {
     }
 
     if (kind == PointerDeviceKind.trackpad) {
-      _delegate.handleTrackpadScroll(scrollDelta);
+      _delegate.handleTrackpadScroll(_delegate.isReversed ? -scrollDelta : scrollDelta);
     } else {
-      _delegate.handleTouchDragScroll(scrollDelta);
+      _delegate.handleTouchDragScroll(_delegate.isReversed ? -scrollDelta : scrollDelta);
     }
 
-    _delegate.onScroll?.call(scrollDelta);
+    _delegate.onScroll?.call(_delegate.isReversed ? -scrollDelta : scrollDelta);
   }
 
   /// Processes mouse-wheel scroll input.
@@ -101,11 +102,15 @@ final class SilkyInputHandler {
       }
     }
 
-    final double effectiveDelta = _delegate.isVertical
+    double effectiveDelta = _delegate.isVertical
         ? scrollDeltaY
         : hasHorizontalWheelDelta
         ? scrollDelta.dx
         : scrollDeltaY;
+
+    if (_delegate.isReversed) {
+      effectiveDelta = -effectiveDelta;
+    }
 
     if (!_delegate.isVertical &&
         _delegate.mouseWheelVerticalDeltaBehavior ==

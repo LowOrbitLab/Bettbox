@@ -158,16 +158,10 @@ class _LogsViewState extends ConsumerState<LogsView> {
                         child: AdaptiveListView.builder(
                           physics: const NextClampingScrollPhysics(),
                           reverse: true,
+                          itemExtent: LogItem.height,
                           controller: _scrollController,
                           itemBuilder: (_, index) {
-                            if (index.isOdd) {
-                              return const Divider(height: 0);
-                            }
-                            final itemIndex = index ~/ 2;
-                            if (itemIndex >= logs.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final log = logs[itemIndex];
+                            final log = logs[index];
                             return LogItem(
                               key: ValueKey(log.dateTime),
                               log: log,
@@ -176,7 +170,7 @@ class _LogsViewState extends ConsumerState<LogsView> {
                               },
                             );
                           },
-                          itemCount: logs.length * 2 - 1,
+                          itemCount: logs.length,
                         ),
                       );
                     },
@@ -207,44 +201,54 @@ class LogItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
-      child: ListItem(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: () {
-        globalState.showCommonDialog(child: LogDetailDialog(log: log));
-      },
-      title: SizedBox(
-        height: globalState.measure.bodyLargeHeight * 2,
-        child: Text(
-          log.payload,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: context.textTheme.bodyLarge?.copyWith(
-            color: log.logLevel.color,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: context.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              width: 1,
+            ),
           ),
         ),
-      ),
-      subtitle: Column(
-        children: [
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              CommonChip(
-                onPressed: () {
-                  onClick?.call(log.logLevel.name);
-                },
-                label: log.logLevel.name,
-              ),
-              Text(
-                log.dateTime,
-                style: context.textTheme.bodySmall?.copyWith(
-                  color: context.colorScheme.onSurface.opacity80,
-                ),
-              ),
-            ],
+        child: ListItem(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          onTap: () {
+          globalState.showCommonDialog(child: LogDetailDialog(log: log));
+        },
+        title: SizedBox(
+          height: globalState.measure.bodyLargeHeight * 2,
+          child: Text(
+            log.payload,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: context.textTheme.bodyLarge?.copyWith(
+              color: log.logLevel.color,
+            ),
           ),
-        ],
-      ),
+        ),
+        subtitle: Column(
+          children: [
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CommonChip(
+                  onPressed: () {
+                    onClick?.call(log.logLevel.name);
+                  },
+                  label: log.logLevel.name,
+                ),
+                Text(
+                  log.dateTime,
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: context.colorScheme.onSurface.opacity80,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        ),
       ),
     );
   }

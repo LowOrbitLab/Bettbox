@@ -227,15 +227,9 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView>
             controller: _scrollController,
             child: AdaptiveListView.builder(
               controller: _scrollController,
+              itemExtent: TrackerInfoItem.height,
               itemBuilder: (context, index) {
-              if (index.isOdd) {
-                return const Divider(height: 0);
-              }
-              final itemIndex = index ~/ 2;
-              if (itemIndex >= connections.length) {
-                return const SizedBox.shrink();
-              }
-              final trackerInfo = connections[itemIndex];
+              final trackerInfo = connections[index];
               return TrackerInfoItem(
                 key: ValueKey(trackerInfo.id),
                 trackerInfo: trackerInfo,
@@ -256,7 +250,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView>
                 ),
               );
             },
-            itemCount: connections.length * 2 - 1,
+            itemCount: connections.length,
             ),
           );
         },
