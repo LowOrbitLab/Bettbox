@@ -20,6 +20,10 @@ class ClashManager extends ConsumerStatefulWidget {
 
 class _ClashContainerState extends ConsumerState<ClashManager>
     with AppMessageListener {
+  static final _shownTailscaleUrls = <String>{};
+  static const _tailscaleAuthPrefix =
+      'To start this tsnet server, restart with TS_AUTHKEY set, or go to: `https://login.tailscale.com/a/';
+
   @override
   Widget build(BuildContext context) {
     return widget.child;
@@ -79,7 +83,25 @@ class _ClashContainerState extends ConsumerState<ClashManager>
     if (log.logLevel == LogLevel.error) {
       globalState.showNotifier(log.payload);
     }
+    final tailscaleUrl = _extractTailscaleAuthUrl(log.payload);
+    if (tailscaleUrl != null && _shownTailscaleUrls.add(tailscaleUrl)) {
+      globalState.showNotifier(
+        'Tailscale authorization required',
+        actionLabel: 'Open',
+        onAction: () => globalState.openUrl(tailscaleUrl, needConfirm: false),
+        showCountdown: false,
+      );
+    }
     super.onLog(log);
+  }
+
+  String? _extractTailscaleAuthUrl(String payload) {
+    final index = payload.indexOf(_tailscaleAuthPrefix);
+    if (index == -1) return null;
+    final start = index + _tailscaleAuthPrefix.length;
+    final end = payload.indexOf('`', start);
+    if (end == -1) return payload.substring(start);
+    return payload.substring(start, end);
   }
 
   @override

@@ -58,9 +58,13 @@ class MessageManagerState extends State<MessageManager> {
     _pushing = true;
     while (_bufferMessages.isNotEmpty) {
       final commonMessage = _bufferMessages.removeAt(0);
-      _messagesNotifier.value = List.from(_messagesNotifier.value)..add(commonMessage);
+      _messagesNotifier.value = List.from(_messagesNotifier.value)
+        ..add(commonMessage);
       await Future.delayed(const Duration(seconds: 1));
-      Future.delayed(commonMessage.duration, () => _handleRemove(commonMessage));
+      Future.delayed(
+        commonMessage.duration,
+        () => _handleRemove(commonMessage),
+      );
       if (_bufferMessages.isEmpty) _pushing = false;
     }
   }
@@ -110,9 +114,7 @@ class MessageManagerState extends State<MessageManager> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 if (message.showCountdown)
-                                  _CountdownWidget(
-                                    duration: message.duration,
-                                  ),
+                                  _CountdownWidget(duration: message.duration),
                                 Expanded(
                                   child: Text(
                                     message.text,
@@ -174,10 +176,7 @@ class _CountdownWidgetState extends State<_CountdownWidget>
   void initState() {
     super.initState();
     _totalSeconds = widget.duration.inSeconds;
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-    );
+    _controller = AnimationController(vsync: this, duration: widget.duration);
     _controller.forward();
   }
 
