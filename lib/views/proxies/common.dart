@@ -14,16 +14,20 @@ double getItemHeight(ProxyCardType proxyCardType) {
   final baseHeight =
       16 + measure.bodyMediumHeight * 2 + measure.bodySmallHeight + 8 + 4;
   return switch (proxyCardType) {
-    ProxyCardType.expand => baseHeight - measure.bodySmallHeight + measure.labelSmallHeight * 2 + 4,
+    ProxyCardType.expand =>
+      baseHeight - measure.bodySmallHeight + measure.labelSmallHeight * 2 + 4,
     ProxyCardType.shrink => baseHeight,
     ProxyCardType.min => baseHeight - measure.bodyMediumHeight,
   };
 }
 
 Future<void> proxyDelayTest(Proxy proxy, [String? testUrl]) async {
+  if (_isNonTestableProxy(proxy)) return;
   final appController = globalState.appController;
   final state = appController.getProxyCardState(proxy.name);
-  final url = appController.getRealTestUrl(state.testUrl.getSafeValue(testUrl ?? ''));
+  final url = appController.getRealTestUrl(
+    state.testUrl.getSafeValue(testUrl ?? ''),
+  );
   if (state.proxyName.isEmpty) {
     return;
   }
@@ -33,9 +37,29 @@ Future<void> proxyDelayTest(Proxy proxy, [String? testUrl]) async {
   appController.setDelay(await clashCore.getDelay(url, state.proxyName));
 }
 
-bool _isNonTestableProxy(String proxyName) {
+bool _isNonTestableProxyName(String proxyName) {
   final name = proxyName.toUpperCase();
   return name == 'REJECT' || name == 'REJECT-DROP' || name == 'PASS';
+}
+
+bool _isNonTestableProxyType(String proxyType) {
+  return proxyType.toUpperCase() == 'REMATCH';
+}
+
+bool _isNonTestableProxy(Proxy proxy) {
+  return _isNonTestableProxyName(proxy.name) ||
+      _isNonTestableProxyType(proxy.type);
+}
+
+String? _getProxyType(String proxyName) {
+  final groups = globalState.appController.getCurrentGroups();
+  for (final group in groups) {
+    if (group.name == proxyName) return group.type.name;
+    for (final proxy in group.all) {
+      if (proxy.name == proxyName) return proxy.type;
+    }
+  }
+  return null;
 }
 
 Future<void> delayTest(
@@ -45,8 +69,8 @@ Future<void> delayTest(
 ]) async {
   final appController = globalState.appController;
   final proxyNames = proxies
+      .where((proxy) => !_isNonTestableProxy(proxy))
       .map((proxy) => proxy.name)
-      .where((name) => !_isNonTestableProxy(name))
       .toSet()
       .toList();
   final concurrencyLimit = globalState.config.proxiesStyle.concurrencyLimit;
@@ -59,7 +83,9 @@ Future<void> delayTest(
         state.testUrl.getSafeValue(testUrl ?? ''),
       );
       final name = state.proxyName;
-      if (name.isEmpty || _isNonTestableProxy(name)) {
+      if (name.isEmpty ||
+          _isNonTestableProxyName(name) ||
+          _isNonTestableProxyType(_getProxyType(name) ?? '')) {
         return;
       }
       // Set testing state
