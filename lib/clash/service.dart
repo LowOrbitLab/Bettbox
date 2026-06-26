@@ -21,6 +21,7 @@ class ClashService extends ClashHandlerInterface {
 
   bool isStarting = false;
   bool _isDestroying = false;
+  Future<void>? _restartFuture;
 
   Process? process;
 
@@ -67,10 +68,7 @@ class ClashService extends ClashHandlerInterface {
           await _deleteSocketFile();
           server = await ServerSocket.bind(address, 0, shared: true);
         } else {
-          server = await ServerSocket.bind(
-            InternetAddress.loopbackIPv4,
-            0,
-          );
+          server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
           _tcpPort = server.port;
           commonPrint.log('TCP Server bound to port: $_tcpPort');
         }
@@ -78,7 +76,12 @@ class ClashService extends ClashHandlerInterface {
         serverCompleter.complete(server);
         await for (final socket in server) {
           await _destroySocket();
-          socketCompleter.complete(socket);
+          if (!socketCompleter.isCompleted) {
+            socketCompleter.complete(socket);
+          } else {
+            socketCompleter = Completer();
+            socketCompleter.complete(socket);
+          }
 
           socket
               .transform(FrameDecoderTransformer())
@@ -105,63 +108,83 @@ class ClashService extends ClashHandlerInterface {
 
   @override
   reStart() async {
-    if (isStarting) return;
+    if (_restartFuture != null) return _restartFuture;
+    _restartFuture = _reStart();
+    try {
+      await _restartFuture;
+    } finally {
+      _restartFuture = null;
+    }
+  }
+
+  Future<void> _reStart() async {
     isStarting = true;
-    _isDestroying = false;
+    try {
+      _isDestroying = false;
 
-    await _destroySocket();
+      await _destroySocket();
 
-    process?.kill();
-    if (process != null) {
-      await process!.exitCode.timeout(const Duration(seconds: 2), onTimeout: () {
-        process?.kill(ProcessSignal.sigkill);
-        return -1;
-      });
-    }
-    process = null;
-
-    socketCompleter = Completer();
-
-    final serverSocket = await serverCompleter.future;
-
-    final String arg;
-    if (_transportType == TransportType.unixSocket) {
-      arg = _socketPath!;
-    } else {
-      arg = '${serverSocket.port}';
-    }
-
-    final homeDirPath = await appPath.homeDirPath;
-    final environment = Map<String, String>.from(Platform.environment);
-    environment['SAFE_PATHS'] = homeDirPath;
-
-    if (system.isWindows) {
-      final serviceOk = await windows?.registerService() ?? false;
-      if (serviceOk) {
-        final started = await helperClient.startCore(
-          corePath: appPath.corePath,
-          arg: arg,
-          homeDir: homeDirPath,
-        );
-        if (started) {
-          await _waitForCoreReady();
-          isStarting = false;
-          return;
-        }
-        commonPrint.log('Helper start core failed, falling back to normal mode');
+      if (system.isWindows) {
+        await helperClient.stopCore();
       }
-    }
 
-    process = await Process.start(appPath.corePath, [
-      arg,
-    ], environment: environment);
-    process?.stdout.listen((_) {});
-    process?.stderr.listen((e) {
-      final error = utf8.decode(e);
-      if (error.isNotEmpty) commonPrint.log(error);
-    });
-    await _waitForCoreReady();
-    isStarting = false;
+      process?.kill();
+      if (process != null) {
+        await process!.exitCode.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () {
+            process?.kill(ProcessSignal.sigkill);
+            return -1;
+          },
+        );
+      }
+      process = null;
+
+      socketCompleter = Completer();
+
+      final serverSocket = await serverCompleter.future;
+
+      final String arg;
+      if (_transportType == TransportType.unixSocket) {
+        arg = _socketPath!;
+      } else {
+        arg = '${serverSocket.port}';
+      }
+
+      final homeDirPath = await appPath.homeDirPath;
+      final environment = Map<String, String>.from(Platform.environment);
+      environment['SAFE_PATHS'] = homeDirPath;
+
+      if (system.isWindows) {
+        final serviceOk = await windows?.registerService() ?? false;
+        if (serviceOk) {
+          final started = await helperClient.startCore(
+            corePath: appPath.corePath,
+            arg: arg,
+            homeDir: homeDirPath,
+          );
+          if (started) {
+            await _waitForCoreReady();
+            return;
+          }
+          commonPrint.log(
+            'Helper start core failed, falling back to normal mode',
+          );
+        }
+      }
+
+      process = await Process.start(appPath.corePath, [
+        arg,
+      ], environment: environment);
+      process?.stdout.listen((_) {});
+      process?.stderr.listen((e) {
+        final error = utf8.decode(e);
+        if (error.isNotEmpty) commonPrint.log(error);
+      });
+      await _waitForCoreReady();
+    } finally {
+      isStarting = false;
+    }
   }
 
   Future<void> _waitForCoreReady() async {

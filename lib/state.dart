@@ -328,10 +328,16 @@ class GlobalState {
 
   Future handleStop() async {
     startTime = null;
-    if (system.isAndroid && isService) {
-      await clashLibHandler?.stopListener();
-    } else {
-      await clashCore.stopListener();
+    try {
+      if (system.isAndroid && isService) {
+        await clashLibHandler?.stopListener().timeout(
+          const Duration(seconds: 2),
+        );
+      } else {
+        await clashCore.stopListener().timeout(const Duration(seconds: 2));
+      }
+    } catch (e) {
+      commonPrint.log('stopListener timeout or error: $e');
     }
     await service?.stopVpn();
     final prefs = await preferences.sharedPreferencesCompleter.future;

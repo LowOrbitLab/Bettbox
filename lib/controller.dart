@@ -94,12 +94,13 @@ class AppController {
     }, args: [groupName, proxyName]);
   }
 
-  Future<void> restartCore() async {
+  Future<void> restartCore({bool forceSetup = false}) async {
     if (_restartLock != null) {
       return _restartLock!.future;
     }
 
     _restartLock = Completer<void>();
+    _ref.read(isRestartingCoreProvider.notifier).state = true;
     commonPrint.log('restart core');
 
     try {
@@ -108,31 +109,42 @@ class AppController {
         await globalState.handleStop();
         _ref.read(runTimeProvider.notifier).value = null;
       }
-      if (system.isAndroid) {
-        clashCore.closeConnections();
-        await clashCore.flushFakeIP();
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      if (system.isDesktop) {
-        await clashService!.reStart();
-      }
-      await _initCore();
+
+      await _restartCoreOnly();
       if (wasRunning) {
         if (system.isDesktop) {
-          await _fastStart();
+          await _fastStartWithRestartIfNeeded(forceSetup: forceSetup);
         } else {
+          if (forceSetup) {
+            await _quickSetupConfig();
+          }
           await globalState.handleStart();
         }
+      } else if (forceSetup) {
+        await _quickSetupConfig();
       }
     } finally {
+      _ref.read(isRestartingCoreProvider.notifier).state = false;
       _restartLock?.complete();
       _restartLock = null;
     }
   }
 
+  Future<void> _restartCoreOnly() async {
+    if (system.isAndroid) {
+      clashCore.closeConnections();
+      await clashCore.flushFakeIP();
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+    if (system.isDesktop) {
+      await clashService!.reStart();
+    }
+    await _initCore();
+  }
+
   Future<void> updateStatus(bool isStart) async {
     if (isStart) {
-      await _fastStart();
+      await _fastStartWithRestartIfNeeded();
     } else {
       await globalState.handleStop();
       clashCore.resetTraffic();
@@ -143,20 +155,31 @@ class AppController {
     }
   }
 
-  Future<void> _fastStart() async {
+  Future<void> _fastStartWithRestartIfNeeded({bool forceSetup = false}) async {
+    final requireRestart = await _fastStart(forceSetup: forceSetup);
+    if (!requireRestart) return;
+
+    await _restartCoreOnly();
+    final stillRequiresRestart = await _fastStart(forceSetup: forceSetup);
+    if (stillRequiresRestart) {
+      throw StateError('Core restart required repeatedly');
+    }
+  }
+
+  Future<bool> _fastStart({bool forceSetup = false}) async {
     final patchConfig = _ref.read(patchClashConfigProvider);
     final isDesktop = system.isDesktop;
 
     if (isDesktop && patchConfig.tun.enable) {
       await _quickSetupConfig(enableTun: false);
 
+      final res = await _requestAdmin(true);
+      if (res.needRestart) {
+        return true;
+      }
+
       if (system.isMacOS) {
         try {
-          final res = await _requestAdmin(true);
-          if (res.needRestart) {
-            await restartCore();
-            return;
-          }
           await globalState.handleStart([updateRunTime, updateTraffic]);
           if (!res.isError) {
             Future.microtask(() async {
@@ -176,32 +199,25 @@ class AppController {
           _backgroundLoad();
         }
         _scheduleCheckIpRefresh();
-        return;
+        return false;
       }
 
       await globalState.handleStart([updateRunTime, updateTraffic]);
 
-      Future.microtask(() async {
-        try {
-          final res = await _requestAdmin(true);
-          if (res.needRestart) {
-            await restartCore();
-            return;
-          }
-          if (!res.isError) {
-            await _updateClashConfig();
-          }
-        } catch (e) {
-          commonPrint.log('FastStart update config failed: $e');
+      try {
+        if (!res.isError) {
+          await _updateClashConfig();
         }
-        _backgroundLoad();
-      });
+      } catch (e) {
+        commonPrint.log('FastStart update config failed: $e');
+      }
+      _backgroundLoad();
 
       _scheduleCheckIpRefresh();
-      return;
+      return false;
     }
 
-    final needReapply = await _checkIfNeedReapply();
+    final needReapply = forceSetup || await _checkIfNeedReapply();
     if (needReapply) {
       await _quickSetupConfig();
     }
@@ -211,6 +227,8 @@ class AppController {
     _scheduleCheckIpRefresh();
 
     _backgroundLoad();
+
+    return false;
   }
 
   void _scheduleCheckIpRefresh() {
@@ -262,6 +280,11 @@ class AppController {
     final realTunEnable = await _prepareTun(targetTun);
     if (realTunEnable == null) return;
 
+    await _setupCoreConfigWithTun(realTunEnable);
+  }
+
+  Future<void> _setupCoreConfigWithTun(bool realTunEnable) async {
+    final patchConfig = _ref.read(patchClashConfigProvider);
     final realPatchConfig = patchConfig.copyWith.tun(enable: realTunEnable);
     final params = await globalState.getSetupParams(
       pathConfig: realPatchConfig,
@@ -477,7 +500,7 @@ class AppController {
   Future<bool?> _prepareTun(bool targetTun) async {
     final res = await _requestAdmin(targetTun);
     if (res.needRestart) {
-      await restartCore();
+      return null;
     } else if (res.isError) {
       return null;
     }
@@ -501,6 +524,7 @@ class AppController {
       final code = await system.authorizeCore();
       switch (code) {
         case AuthorizeCode.success:
+          _ref.read(realTunEnableProvider.notifier).value = enableTun;
           return Result.success(true, needRestart: true);
         case AuthorizeCode.none:
           break;
@@ -530,6 +554,13 @@ class AppController {
     await updateProviders();
   }
 
+  Future<void> _refreshProfileData() async {
+    _backgroundLoadVersion++;
+    await clashCore.requestGc();
+    await updateGroups();
+    await updateProviders();
+  }
+
   Future applyProfile({bool silence = false}) async {
     if (silence) {
       await _applyProfile();
@@ -541,13 +572,52 @@ class AppController {
     addCheckIpNumDebounce();
   }
 
-  Future<void> handleChangeProfile() async {
+  bool _suppressNeedSetupListener = false;
+  Completer<void>? _changeProfileLock;
+  bool _hasPendingProfileChange = false;
+
+  bool get suppressNeedSetupListener => _suppressNeedSetupListener;
+
+  Future<void> _handleChangeProfile() async {
     _ref.read(delayDataSourceProvider.notifier).value = {};
-    await applyProfile(silence: true);
-    await restartCore();
+    await restartCore(forceSetup: true);
+    await _refreshProfileData();
     _ref.read(logsProvider.notifier).value = FixedList(maxLength);
     _ref.read(requestsProvider.notifier).value = FixedList(maxLength);
     globalState.computeHeightMapCache = {};
+  }
+
+  Future<void> handleChangeProfile() async {
+    if (_changeProfileLock != null) {
+      _hasPendingProfileChange = true;
+      return _changeProfileLock!.future;
+    }
+
+    final lock = Completer<void>();
+    _changeProfileLock = lock;
+
+    try {
+      do {
+        _hasPendingProfileChange = false;
+        await _handleChangeProfile();
+      } while (_hasPendingProfileChange);
+      lock.complete();
+    } catch (e, stackTrace) {
+      lock.completeError(e, stackTrace);
+      rethrow;
+    } finally {
+      _changeProfileLock = null;
+    }
+  }
+
+  Future<void> handleSwitchProfile(String profileId) async {
+    _suppressNeedSetupListener = true;
+    try {
+      _ref.read(currentProfileIdProvider.notifier).value = profileId;
+      await handleChangeProfile();
+    } finally {
+      _suppressNeedSetupListener = false;
+    }
   }
 
   void updateBrightness() {

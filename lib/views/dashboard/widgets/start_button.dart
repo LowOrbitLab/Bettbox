@@ -107,7 +107,13 @@ class _StartButtonState extends ConsumerState<StartButton> {
                   SizedBox(
                     height: globalState.measure.bodyMediumHeight + 2,
                     child: FadeThroughBox(
-                      child: _buildContent(context, ref, state, isStart, runTime),
+                      child: _buildContent(
+                        context,
+                        ref,
+                        state,
+                        isStart,
+                        runTime,
+                      ),
                     ),
                   ),
                 ],
@@ -142,6 +148,25 @@ class _StartButtonState extends ConsumerState<StartButton> {
         style: context.textTheme.bodyMedium?.toLight.adjustSize(1),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    final isRestarting = ref.watch(isRestartingCoreProvider);
+    if (isRestarting) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Icon(Icons.refresh, size: 16, color: context.colorScheme.primary),
+          SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              appLocalizations.restartCoreTitle,
+              style: context.textTheme.bodyMedium?.toLight.adjustSize(1),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       );
     }
 
