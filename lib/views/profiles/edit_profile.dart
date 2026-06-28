@@ -14,11 +14,13 @@ import 'package:flutter/services.dart';
 class EditProfileView extends StatefulWidget {
   final Profile profile;
   final BuildContext context;
+  final bool isNew;
 
   const EditProfileView({
     super.key,
     required this.context,
     required this.profile,
+    this.isNew = false,
   });
 
   @override
@@ -68,45 +70,56 @@ class EditProfileViewState extends State<EditProfileView> {
     final appController = globalState.appController;
     Profile profile = this.profile.copyWith(
       url: urlController.text,
-      label: labelController.text,
-      ageSecretKey: ageSecretKeyController.text.trim().isEmpty ? null : ageSecretKeyController.text.trim(),
+      label: labelController.text.trim().isEmpty
+          ? null
+          : labelController.text.trim(),
+      ageSecretKey: ageSecretKeyController.text.trim().isEmpty
+          ? null
+          : ageSecretKeyController.text.trim(),
       autoUpdate: autoUpdate,
       autoUpdateDuration: Duration(
         minutes: int.parse(autoUpdateDurationController.text),
       ),
     );
-    final hasUpdate = widget.profile.url != profile.url;
-    if (fileData != null) {
-      if (profile.type == ProfileType.url && autoUpdate) {
-        final res = await globalState.showMessage(
-          title: appLocalizations.tip,
-          message: TextSpan(text: appLocalizations.profileHasUpdate),
-        );
-        if (res == true) {
-          profile = profile.copyWith(autoUpdate: false);
-        }
-      }
-      try {
-        final updatedProfile = await profile.saveFile(fileData!);
-        appController.setProfileAndAutoApply(updatedProfile);
-      } catch (e) {
-        if (mounted) {
-          await globalState.showMessage(
-            title: appLocalizations.tip,
-            message: TextSpan(text: e.toString()),
-          );
-        }
-        return;
-      }
-    } else if (!hasUpdate) {
-      appController.setProfileAndAutoApply(profile);
+    if (widget.isNew) {
+      await appController.safeRun(() async {
+        final updatedProfile = await profile.update();
+        await appController.addProfile(updatedProfile);
+      }, silence: false);
     } else {
-      globalState.appController.safeRun(() async {
-        await Future.delayed(commonDuration);
-        if (hasUpdate) {
-          await appController.updateProfile(profile);
+      final hasUpdate = widget.profile.url != profile.url;
+      if (fileData != null) {
+        if (profile.type == ProfileType.url && autoUpdate) {
+          final res = await globalState.showMessage(
+            title: appLocalizations.tip,
+            message: TextSpan(text: appLocalizations.profileHasUpdate),
+          );
+          if (res == true) {
+            profile = profile.copyWith(autoUpdate: false);
+          }
         }
-      });
+        try {
+          final updatedProfile = await profile.saveFile(fileData!);
+          appController.setProfileAndAutoApply(updatedProfile);
+        } catch (e) {
+          if (mounted) {
+            await globalState.showMessage(
+              title: appLocalizations.tip,
+              message: TextSpan(text: e.toString()),
+            );
+          }
+          return;
+        }
+      } else if (!hasUpdate) {
+        appController.setProfileAndAutoApply(profile);
+      } else {
+        globalState.appController.safeRun(() async {
+          await Future.delayed(commonDuration);
+          if (hasUpdate) {
+            await appController.updateProfile(profile);
+          }
+        });
+      }
     }
     if (mounted) {
       Navigator.of(context).pop();
@@ -245,6 +258,7 @@ class EditProfileViewState extends State<EditProfileView> {
       if (widget.profile.type == ProfileType.url) ...[
         ListItem(
           title: TextFormField(
+            autofocus: widget.isNew,
             textInputAction: TextInputAction.next,
             keyboardType: TextInputType.url,
             controller: urlController,
@@ -329,9 +343,10 @@ class EditProfileViewState extends State<EditProfileView> {
             ),
           ),
       ],
-      ValueListenableBuilder<FileInfo?>(
-        valueListenable: fileInfoNotifier,
-        builder: (_, fileInfo, _) {
+      if (!widget.isNew)
+        ValueListenableBuilder<FileInfo?>(
+          valueListenable: fileInfoNotifier,
+          builder: (_, fileInfo, _) {
           return FadeThroughBox(
             child: fileInfo == null
                 ? Container()
