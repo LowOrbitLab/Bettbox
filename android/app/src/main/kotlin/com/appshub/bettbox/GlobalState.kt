@@ -177,7 +177,7 @@ object GlobalState {
     }
 
     fun handleTryDestroy() {
-        if (flutterEngine == null) destroyServiceEngine()
+        destroyServiceEngine()
     }
 
     fun destroyServiceEngine() {
