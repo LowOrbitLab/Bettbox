@@ -350,7 +350,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "fourColumns": MessageLookupByLibrary.simpleMessage("四列"),
     "fruitSaladScheme": MessageLookupByLibrary.simpleMessage("果繽紛"),
     "general": MessageLookupByLibrary.simpleMessage("一般"),
-    "generalDesc": MessageLookupByLibrary.simpleMessage("修改一般設定"),
+    "generalDesc": MessageLookupByLibrary.simpleMessage("修改全域一般設定"),
     "generateFromPrivateKey": MessageLookupByLibrary.simpleMessage("從Age私鑰生成"),
     "generateSecret": MessageLookupByLibrary.simpleMessage("產生"),
     "geoData": MessageLookupByLibrary.simpleMessage("地理資料"),

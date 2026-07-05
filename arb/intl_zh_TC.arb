@@ -541,7 +541,7 @@
   "addedOriginRules": "附加到原始規則",
   "enableOverride": "啟用覆寫",
   "saveChanges": "是否儲存更改？",
-  "generalDesc": "修改一般設定",
+  "generalDesc": "修改全域一般設定",
   "findProcessModeDesc": "開啟後可以匹配尋找處理程序",
   "tabAnimationDesc": "僅在部分行動檢視中有效",
   "navBarHapticFeedback": "觸覺回饋",
