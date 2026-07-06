@@ -139,7 +139,7 @@ Future<void> _service(List<String> flags) async {
               .where((e) => e.id == profileId)
               .firstOrNull;
           final profileName = profile?.label ?? 'Bettbox';
-          await vpn_service.service?.updateNotificationSpeed(profileName, '↑0B/s ↓0B/s');
+          await vpn_service.service?.updateNotificationSpeed(profileName, '0B/s↑  0B/s↓');
         }
 
         if (globalState.config.appSetting.openLogs) {

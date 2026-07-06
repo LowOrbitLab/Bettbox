@@ -387,7 +387,7 @@ class AppController {
           .where((e) => e.id == currentProfileId)
           .firstOrNull;
       final profileName = profile?.label ?? 'Bettbox';
-      final speedInfo = traffic.toString();
+      final speedInfo = traffic.toNotificationSpeedText();
       await vpn_service.service?.updateNotificationSpeed(
         profileName,
         speedInfo,

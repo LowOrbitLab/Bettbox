@@ -245,6 +245,10 @@ class Traffic {
     return '↑ $up/s   ↓ $down/s';
   }
 
+  String toNotificationSpeedText() {
+    return '$up/s↑  $down/s↓';
+  }
+
   @override
   String toString() {
     return '$up↑ $down↓';

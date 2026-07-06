@@ -61,11 +61,23 @@ suspend fun Service.createBettboxNotificationBuilder(): NotificationCompat.Build
                 foregroundServiceBehavior = FOREGROUND_SERVICE_IMMEDIATE
             }
             setOngoing(true)
-            setShowWhen(true)
+            setShowWhen(false)
             setOnlyAlertOnce(true)
-            setPriority(NotificationCompat.PRIORITY_HIGH)
         }
     }
+
+fun NotificationCompat.Builder.setBettboxNotificationContent(
+    title: String,
+    content: String,
+): NotificationCompat.Builder {
+    val contentText = content.takeIf { it.isNotBlank() }
+    val tickerText = contentText?.let { "$title: $it" } ?: title
+
+    return setContentTitle(title)
+        .setContentText(contentText)
+        .setStyle(null)
+        .setTicker(tickerText)
+}
 
 fun Service.ensureNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

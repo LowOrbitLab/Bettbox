@@ -194,23 +194,8 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
 
         lastNotificationText = null
         val builder = notificationBuilder()
-
-        val separator = " ︙ "
-        val combinedText = "$title$separator$content"
-        val spannable = android.text.SpannableString(combinedText)
-        val startIndex = title.length + separator.length
-        if (startIndex in 1..combinedText.length) {
-            spannable.setSpan(
-                android.text.style.RelativeSizeSpan(0.80f),
-                startIndex,
-                combinedText.length,
-                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
-        val notification = builder.setContentTitle(spannable)
-            .setContentText(null)
-            .setStyle(null)
-            .setTicker(combinedText)
+        val notification = builder
+            .setBettboxNotificationContent(title, content)
             .build()
 
         if (!hasStartedForeground) {
@@ -226,28 +211,16 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
             return
         }
 
-        val separator = " ︙ "
-        val combinedText = "$profileName$separator$speedInfo"
+        val title = profileName.ifBlank { "Bettbox" }
+        val combinedText = "$title\n$speedInfo"
         if (combinedText == lastNotificationText) {
             return
         }
         lastNotificationText = combinedText
 
         val builder = notificationBuilder()
-        val spannable = android.text.SpannableString(combinedText)
-        val startIndex = profileName.length + separator.length
-        if (startIndex in 1..combinedText.length) {
-            spannable.setSpan(
-                android.text.style.RelativeSizeSpan(0.80f),
-                startIndex,
-                combinedText.length,
-                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
-        val notification = builder.setContentTitle(spannable)
-            .setContentText(null)
-            .setStyle(null)
-            .setTicker(combinedText)
+        val notification = builder
+            .setBettboxNotificationContent(title, speedInfo)
             .build()
 
         if (hasStartedForeground) {

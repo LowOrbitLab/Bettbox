@@ -6,9 +6,6 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.RelativeSizeSpan
 import androidx.core.app.NotificationCompat
 import com.appshub.bettbox.GlobalState
 import com.appshub.bettbox.R
@@ -68,24 +65,8 @@ class BettboxService : Service(), BaseServiceInterface {
         }
 
         val builder = notificationBuilder()
-
-        val separator = " ‹ "
-        val combinedText = "$title$separator$content"
-        val spannable = SpannableString(combinedText).apply {
-            val startIndex = title.length + separator.length
-            if (startIndex in 1..combinedText.length) {
-                setSpan(
-                    RelativeSizeSpan(0.80f),
-                    startIndex,
-                    combinedText.length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            }
-        }
-        val notification = builder.setContentTitle(spannable)
-            .setContentText(null)
-            .setStyle(null)
-            .setTicker(combinedText)
+        val notification = builder
+            .setBettboxNotificationContent(title, content)
             .build()
 
         if (!hasStartedForeground) {
