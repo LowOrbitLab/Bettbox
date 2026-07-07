@@ -72,7 +72,7 @@ abstract class AppSettingProps with _$AppSettingProps {
     @Default(true) bool onlyStatisticsProxy,
     @Default(false) bool autoLaunch,
     @Default(false) bool silentLaunch,
-    @Default(true) bool smartDelayLaunch,
+    @Default(false) bool smartDelayLaunch,
     @Default(false) bool autoRun,
     @Default(true) bool openLogs,
     @Default(true) bool closeConnections,
@@ -157,7 +157,7 @@ abstract class VpnProps with _$VpnProps {
     @Default(false) bool networkSpeedNotification,
     @Default(false) bool excludeChina,
     @Default(true) bool trayEnhancement,
-    @Default(false) bool alwaysShowTitleBar,
+    @Default(true) bool alwaysShowTitleBar,
     @Default(true) bool quickResponse,
     @Default(defaultAccessControl) AccessControl accessControl,
   }) = _VpnProps;
