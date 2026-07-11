@@ -142,7 +142,7 @@ extension ProfileExtension on Profile {
     final isExists = await check();
     if (!isExists) {
       if (url.isNotEmpty) {
-        await update();
+        await update(validate: false);
       }
     }
   }
@@ -167,17 +167,17 @@ extension ProfileExtension on Profile {
     return (await file.lastModified()).microsecondsSinceEpoch;
   }
 
-  Future<Profile> update() async {
+  Future<Profile> update({bool validate = true}) async {
     final response = await request.getFileResponseForUrl(url);
     final disposition = response.headers.value('content-disposition');
     final userinfo = response.headers.value('subscription-userinfo');
     return await copyWith(
       label: label ?? utils.getFileNameForDisposition(disposition) ?? id,
       subscriptionInfo: SubscriptionInfo.formHString(userinfo),
-    ).saveFile(response.data);
+    ).saveFile(response.data, validate: validate);
   }
 
-  Future<Profile> saveFile(Uint8List bytes) async {
+  Future<Profile> saveFile(Uint8List bytes, {bool validate = true}) async {
     String content = utf8.decode(bytes);
     final key = ageSecretKey;
     if (key != null && key.isNotEmpty) {
@@ -188,10 +188,13 @@ extension ProfileExtension on Profile {
         }
       } catch (_) {}
     }
-    final message =
-        await clashCore.validateConfig(content, ageSecretKey: ageSecretKey);
-    if (message.isNotEmpty) {
-      throw message;
+    content = utils.patchValidateConfig(content);
+    if (validate) {
+      final message =
+          await clashCore.validateConfig(content, ageSecretKey: ageSecretKey);
+      if (message.isNotEmpty) {
+        throw message;
+      }
     }
     final file = await getFile();
     await file.writeAsString(content);
@@ -209,6 +212,7 @@ extension ProfileExtension on Profile {
         }
       } catch (_) {}
     }
+    content = utils.patchValidateConfig(content);
     final message =
         await clashCore.validateConfig(content, ageSecretKey: ageSecretKey);
     if (message.isNotEmpty) {

@@ -434,8 +434,8 @@ class AppController {
     _ref.read(localIpProvider.notifier).value = await utils.getLocalIpAddress();
   }
 
-  Future<void> updateProfile(Profile profile) async {
-    final newProfile = await profile.update();
+  Future<void> updateProfile(Profile profile, {bool validate = true}) async {
+    final newProfile = await profile.update(validate: validate);
     _ref
         .read(profilesProvider.notifier)
         .setProfile(newProfile.copyWith(isUpdating: false));
@@ -660,7 +660,7 @@ class AppController {
         continue;
       }
       try {
-        await updateProfile(profile);
+        await updateProfile(profile, validate: false);
       } catch (e) {
         commonPrint.log(
           '[AutoUpdate] Failed to update ${profile.label ?? profile.id}: ${e.formatError}',
@@ -691,7 +691,7 @@ class AppController {
         commonPrint.log(
           '[MissedUpdate] Updating profile: ${profile.label ?? profile.id}',
         );
-        await updateProfile(profile);
+        await updateProfile(profile, validate: false);
       } catch (e) {
         commonPrint.log(
           '[MissedUpdate] Failed to update ${profile.label ?? profile.id}: ${e.formatError}',

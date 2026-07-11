@@ -164,8 +164,9 @@ class EditProfileViewState extends State<EditProfileView> {
   }
 
   Future<void> _handleSaveEdit(BuildContext context, String data) async {
+    final patchedData = utils.patchValidateConfig(data);
     final message = await globalState.appController.safeRun<String>(() async {
-      final message = await clashCore.validateConfig(data, ageSecretKey: ageSecretKeyController.text.trim());
+      final message = await clashCore.validateConfig(patchedData, ageSecretKey: ageSecretKeyController.text.trim());
       return message;
     }, silence: false);
     if (message?.isNotEmpty == true) {
@@ -176,7 +177,7 @@ class EditProfileViewState extends State<EditProfileView> {
       return;
     }
     if (context.mounted) {
-      Navigator.of(context).pop(data);
+      Navigator.of(context).pop(patchedData);
     }
   }
 
