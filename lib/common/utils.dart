@@ -344,6 +344,13 @@ class Utils {
             return 0;
           });
     for (final interface in interfaces) {
+      final nameLower = interface.name.toLowerCase();
+      if (nameLower.contains('tun') ||
+          nameLower.contains('vpn') ||
+          nameLower.contains('tap') ||
+          nameLower.contains('ppp')) {
+        continue;
+      }
       final addresses = interface.addresses;
       if (addresses.isEmpty) {
         continue;
@@ -380,6 +387,17 @@ class Utils {
     // Generate an 8-digit number (10000000 to 99999999)
     final secret = 10000000 + random.nextInt(90000000);
     return secret.toString();
+  }
+
+  String patchValidateConfig(String content) {
+    final regExp = RegExp(
+      r'^(\s*geodata-mode\s*:\s*)(true|\x27true\x27|\x22true\x22)(.*)$',
+      multiLine: true,
+      caseSensitive: false,
+    );
+    return content.replaceAllMapped(regExp, (match) {
+      return '${match.group(1)}false${match.group(3)}';
+    });
   }
 }
 
