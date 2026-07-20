@@ -188,12 +188,22 @@ extension ProfileExtension on Profile {
         }
       } catch (_) {}
     }
-    content = utils.patchValidateConfig(content);
     if (validate) {
       final message =
           await clashCore.validateConfig(content, ageSecretKey: ageSecretKey);
       if (message.isNotEmpty) {
-        throw message;
+        final patched = utils.patchValidateConfig(content);
+        if (patched != content) {
+          final patchedMessage =
+              await clashCore.validateConfig(patched, ageSecretKey: ageSecretKey);
+          if (patchedMessage.isEmpty) {
+            content = patched;
+          } else {
+            throw message;
+          }
+        } else {
+          throw message;
+        }
       }
     }
     final file = await getFile();
@@ -212,11 +222,21 @@ extension ProfileExtension on Profile {
         }
       } catch (_) {}
     }
-    content = utils.patchValidateConfig(content);
     final message =
         await clashCore.validateConfig(content, ageSecretKey: ageSecretKey);
     if (message.isNotEmpty) {
-      throw message;
+      final patched = utils.patchValidateConfig(content);
+      if (patched != content) {
+        final patchedMessage =
+            await clashCore.validateConfig(patched, ageSecretKey: ageSecretKey);
+        if (patchedMessage.isEmpty) {
+          content = patched;
+        } else {
+          throw message;
+        }
+      } else {
+        throw message;
+      }
     }
     final file = await getFile();
     await file.writeAsString(content);
