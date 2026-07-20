@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"time"
 )
 
 var (
@@ -67,6 +68,18 @@ func toExternalProvider(p cp.Provider) (*ExternalProvider, error) {
 			SubscriptionInfo: psp.GetSubscriptionInfo(),
 			Proxies:          psp.Proxies(),
 		}, nil
+	case *provider.InlineProvider:
+		ip := p.(*provider.InlineProvider)
+		return &ExternalProvider{
+			Name:             ip.Name(),
+			Type:             ip.Type().String(),
+			VehicleType:      ip.VehicleType().String(),
+			Count:            ip.Count(),
+			UpdateAt:         time.Now(),
+			Path:             "",
+			SubscriptionInfo: nil,
+			Proxies:          ip.Proxies(),
+		}, nil
 	case *rp.RuleSetProvider:
 		rsp := p.(*rp.RuleSetProvider)
 		return &ExternalProvider{
@@ -90,6 +103,8 @@ func sideUpdateExternalProvider(p cp.Provider, bytes []byte) error {
 		if err == nil {
 			return err
 		}
+		return nil
+	case *provider.InlineProvider:
 		return nil
 	case rp.RuleSetProvider:
 		rsp := p.(*rp.RuleSetProvider)

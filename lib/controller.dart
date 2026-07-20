@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:tray_manager/tray_manager.dart';
 
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:yaml/yaml.dart';
@@ -127,13 +128,16 @@ class AppController {
     _invalidateCoreReads();
 
     final wasRunning = _ref.read(runTimeProvider.notifier).isStart;
+    final keepVpnService = system.isAndroid;
     if (wasRunning) {
-      await globalState.handleStop();
+      await globalState.handleStop(!keepVpnService);
       _ref.read(runTimeProvider.notifier).value = null;
     }
     if (system.isAndroid) {
-      clashCore.closeConnections();
-      await Future.delayed(const Duration(milliseconds: 500));
+      await clashCore.closeConnections();
+      await clashCore.flushFakeIP();
+      await clashCore.flushDnsCache();
+      await clashCore.requestGc(forceFreeOSMemory: true);
     }
     if (system.isDesktop) {
       lastProfileModified = null;
@@ -148,7 +152,10 @@ class AppController {
     }
 
     if (wasRunning) {
-      await globalState.handleStart([updateRunTime, updateTraffic]);
+      await globalState.handleStart(
+        [updateRunTime, updateTraffic],
+        !keepVpnService,
+      );
       _scheduleCheckIpRefresh();
       _backgroundLoad();
     }
@@ -192,6 +199,7 @@ class AppController {
             return;
           }
           await globalState.handleStart([updateRunTime, updateTraffic]);
+          await updateProviders();
           if (!res.isError) {
             Future.microtask(() async {
               try {
@@ -207,6 +215,7 @@ class AppController {
         } catch (e) {
           commonPrint.log('FastStart macOS auth error: $e');
           await globalState.handleStart([updateRunTime, updateTraffic]);
+          await updateProviders();
           _backgroundLoad();
         }
         _scheduleCheckIpRefresh();
@@ -214,6 +223,7 @@ class AppController {
       }
 
       await globalState.handleStart([updateRunTime, updateTraffic]);
+      await updateProviders();
 
       Future.microtask(() async {
         try {
@@ -235,15 +245,16 @@ class AppController {
       return;
     }
 
+    await globalState.handleStart([updateRunTime, updateTraffic]);
+
     final needReapply = await _needsSetupConfig();
     if (needReapply) {
       await _quickSetupConfig();
     }
 
-    await globalState.handleStart([updateRunTime, updateTraffic]);
-
     _scheduleCheckIpRefresh();
 
+    await updateProviders();
     _backgroundLoad();
   }
 
@@ -261,11 +272,7 @@ class AppController {
         final groups = await clashCore.getProxiesGroups();
         if (version != _backgroundLoadVersion) return;
 
-        final providers = await clashCore.getExternalProviders();
-        if (version != _backgroundLoadVersion) return;
-
         _ref.read(groupsProvider.notifier).value = groups;
-        _ref.read(providersProvider.notifier).value = providers;
 
         await Future.delayed(const Duration(seconds: 2));
         if (version != _backgroundLoadVersion) return;
@@ -899,6 +906,13 @@ class AppController {
     globalState.isExiting = true;
 
     try {
+      if (system.isDesktop) {
+        try {
+          await trayManager.destroy();
+        } catch (e) {
+          commonPrint.log('Failed to destroy tray icon on exit: $e');
+        }
+      }
       stopWakelockAutoRecovery();
       await globalState.handleBackground();
       if (system.isDesktop) {
@@ -1152,6 +1166,11 @@ class AppController {
 
     await _handlePreference();
     await _handlerDisclaimer();
+    if (system.isWindows) {
+      unawaited(setProcessPriority(_ref.read(appSettingProvider).enableHighPriority).catchError((e) {
+        commonPrint.log('Failed to set initial process priority: $e');
+      }));
+    }
     _ref.read(initProvider.notifier).value = true;
   }
 
@@ -1325,23 +1344,24 @@ class AppController {
   }
 
   Future<void> addProfileFormURL(String url, {String? ageSecretKey}) async {
-    if (globalState.navigatorKey.currentState?.canPop() ?? false) {
-      globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
-    }
-    toProfiles();
-
-    final profile = await safeRun(
-      () async {
-        return await Profile.normal(
-          url: url,
-          ageSecretKey: ageSecretKey,
-        ).update();
-      },
-      needLoading: true,
-      title: appLocalizations.add,
-    );
-    if (profile != null) {
+    _ref.read(loadingProvider.notifier).value = true;
+    try {
+      final profile = await Profile.normal(
+        url: url,
+        ageSecretKey: ageSecretKey,
+      ).update();
+      if (globalState.navigatorKey.currentState?.canPop() ?? false) {
+        globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      }
+      toProfiles();
       await addProfile(profile);
+    } on Object catch (e) {
+      await globalState.showMessage(
+        title: appLocalizations.add,
+        message: TextSpan(text: _formatErrorMessage(e)),
+      );
+    } finally {
+      _ref.read(loadingProvider.notifier).value = false;
     }
   }
 
@@ -1352,19 +1372,21 @@ class AppController {
       return;
     }
     if (!context.mounted) return;
-    globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
-    toProfiles();
 
-    final profile = await safeRun(
-      () async {
-        await Future.delayed(const Duration(milliseconds: 500));
-        return await Profile.normal(label: platformFile?.name).saveFile(bytes);
-      },
-      needLoading: true,
-      title: appLocalizations.add,
-    );
-    if (profile != null) {
+    _ref.read(loadingProvider.notifier).value = true;
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      final profile = await Profile.normal(label: platformFile?.name).saveFile(bytes);
+      globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      toProfiles();
       await addProfile(profile);
+    } on Object catch (e) {
+      await globalState.showMessage(
+        title: appLocalizations.add,
+        message: TextSpan(text: _formatErrorMessage(e)),
+      );
+    } finally {
+      _ref.read(loadingProvider.notifier).value = false;
     }
   }
 
@@ -1439,6 +1461,11 @@ class AppController {
     _ref
         .read(patchClashConfigProvider.notifier)
         .updateState((state) => state.copyWith.tun(enable: !state.tun.enable));
+    if (system.isLinux && globalState.backgroundMode.value) {
+      unawaited(updateClashConfig());
+    } else {
+      updateClashConfigDebounce();
+    }
   }
 
   void updateSystemProxy() {
@@ -1491,6 +1518,11 @@ class AppController {
         .updateState((state) => state.copyWith(mode: mode));
     if (mode == Mode.global) {
       updateCurrentGroupName(GroupName.GLOBAL.name);
+    }
+    if (system.isLinux && globalState.backgroundMode.value) {
+      unawaited(updateClashConfig());
+    } else {
+      updateClashConfigDebounce();
     }
     updateGroupsDebounce();
     addCheckIpNumDebounce();
@@ -1672,9 +1704,9 @@ class AppController {
     });
   }
 
-  Future<void> updateTray([bool focus = false, bool silent = false]) async {
+  Future<void> updateTray([bool focus = false, bool silent = false, bool force = false]) async {
     final trayState = _ref.read(trayStateProvider);
-    await tray.update(trayState: trayState, focus: focus, silent: silent);
+    await tray.update(trayState: trayState, focus: focus, silent: silent, force: force);
   }
 
   Future<void> _processRecoveryArchive(
@@ -2210,7 +2242,9 @@ class AppController {
     }
 
     // Use default widgets if merged is empty
-    return mergedWidgets.isNotEmpty ? mergedWidgets : defaultDashboardWidgets;
+    return mergedWidgets.isNotEmpty
+        ? mergedWidgets
+        : (system.isAndroid ? defaultAndroidDashboardWidgets : defaultDashboardWidgets);
   }
 
   Future<T?> safeRun<T>(
@@ -2219,7 +2253,6 @@ class AppController {
     bool needLoading = false,
     bool silence = true,
   }) async {
-    final realSilence = needLoading == true ? true : silence;
     try {
       if (needLoading) {
         _ref.read(loadingProvider.notifier).value = true;
@@ -2229,13 +2262,20 @@ class AppController {
     } on Object catch (e) {
       commonPrint.log(e.formatError);
       final errorMessage = _formatErrorMessage(e);
-      if (realSilence) {
+      if (needLoading) {
+        _ref.read(loadingProvider.notifier).value = false;
+      }
+      if (silence) {
         globalState.showNotifier(errorMessage);
       } else {
-        globalState.showMessage(
-          title: title ?? appLocalizations.tip,
-          message: TextSpan(text: errorMessage),
-        );
+        try {
+          await globalState.showMessage(
+            title: title ?? appLocalizations.tip,
+            message: TextSpan(text: errorMessage),
+          );
+        } catch (_) {
+          globalState.showNotifier(errorMessage);
+        }
       }
       return null;
     } finally {
